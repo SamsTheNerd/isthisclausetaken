@@ -3,7 +3,7 @@
 :- multifile seat/2.
 :- multifile shape/2.
 
-% shape('Empty', _). 
+shape('Empty', _). 
 
 % shape_status(Shape, Status)
 % seat_status(Seat, Status)
@@ -68,39 +68,21 @@ nearby_seat(S1, S2) :- adjacent_seat(S1, S2).
 % adjacent_seat(S1, S2) :- adjacent_seat(S2, S1).
 
 
-:- multifile level_state/2. % level -> lstate(shape_seats, toggles, items)
-
-get_shape_seats(Level, ShapeSeats) :- level_state(Level, lstate(ShapeSeats, _, _)).
-
 % bad_shape_seat(Shape, Seat). indicates the shape CANT go in that seat
 
 % can't go in a seat if someone else is there
 bad_shape_seat(Shape, Seat) :- OtherShape \= Shape, OtherShape, shape_in_seat(OtherShape, Seat).
 
-bad_shape_seat(Shape, Seat) :- OtherSeat \= Seat, OtherSeat, shape_in_seat(Shape, OtherSeat).
-
-shape_in_seat(Shape, Seat) :- 
-    write('shape_in_seat_start: '), write(Shape), write(' '), write(Seat), write('\n'),
-    Shape = shape(ShapeName, ShapeLevel),
-    Seat = seat(_, SeatLevel), 
-    Shape, Seat,
-    SeatLevel = ShapeLevel,
-    get_shape_seats(SeatLevel, ShapeSeats),
-    write('pre-bad: '), write(Shape), write(' '), write(Seat), write('\n'),
-    \+ bad_shape_seat(Shape, Seat),
-    write('post-bad: '), write(Shape), write(' '), write(Seat), write('\n'),
-    member(shape_seat(Shape, SeatAns), ShapeSeats),
-    SeatAns = Seat,
-    write('\n - shape_in_seat: '), write(Shape), write(' '), write(Seat), write('\n').
+% bad_shape_seat(Shape, Seat) :- OtherSeat \= Seat, OtherSeat, shape_in_seat(Shape, OtherSeat).
 
 unique_elems([]).
 unique_elems([X | Xs]) :- \+ member(X, Xs), unique_elems(Xs).
 
 bad_shape_seat(Shape, Seat) :- 
-    % write('mrrp'), write(Shape), write(Seat),
+    % write('mrrp\n'), write(Shape), write(Seat),
     needs_status(Shape, Status),
-    % write('unmet status: '), write(Shape), write(' '), write(Seat), write(': '), write(Status), write('\n'),
-    \+ seat_status(Seat, Status).
+    \+ seat_status(Seat, Status),
+    write('unmet status: '), write(Shape), write(' '), write(Seat), write(': '), write(Status), write('\n').
 
 bad_shape_seat(Shape, Seat) :- 
     % write(Shape), write(Seat),
@@ -128,11 +110,20 @@ shape_property_def_impl.
 
 dislikes_adj(Shape, any_shape) :- wants_alone(Shape).
 
-% bad_shape_seat(Shape, Seat) :-
-%     wants_alone(Shape),
-%     adjacent_seat(Seat, AdjSeat),
-%     seat_is_taken(AdjSeat).
+bad_shape_seat(Shape, Seat) :-
+    wants_alone(Shape),
+    write('\nwants to be alone: '), write(Shape),
+    adjacent_seat(Seat, AdjSeat),
+    write(AdjSeat),
+    Shape = shape(_, Level),
+    dif(AdjShape, shape('Empty', Level)),
+    % \=(AdjShape, shape('Empty', Level)),
+    dif(Shape, AdjShape),
+    % \=(Shape, AdjShape),
+    shape_in_seat(AdjShape, AdjSeat),
+    write(AdjShape), write('\n').
 
 shape_named(ShapeName, shape(ShapeName, _)) :- write(ShapeName).
 any_shape(shape(_, _)).
 
+:- dynamic shape_in_seat/2.

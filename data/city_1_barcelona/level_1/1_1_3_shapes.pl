@@ -10,5 +10,4 @@ shape('Shape2', '1_1_3').
 needs_status(shape('Shape1', '1_1_3'), 'Window').
 needs_status(shape('Shape2', '1_1_3'), 'Window').
 
-level_state('1_1_3', Sol_1_1_3).
 solve_1_1_3 :- solve_game('1_1_3').
