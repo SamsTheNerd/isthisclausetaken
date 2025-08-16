@@ -2,112 +2,84 @@
 
 % import this in each level def and just call it from there I suppose?
 
-alldifshapes([], _).
-alldifshapes([shape('Empty', Level) | Es], Level) :- alldifshapes(Es, Level).
-alldifshapes([E|Es], Level) :-
-    maplist(dif(E), Es),
-    alldifshapes(Es, Level).
-
 alldif([]).
 alldif([E|Es]) :-
     maplist(dif(E), Es),
+    maplist(\=(E), Es),
     alldif(Es).
 
-add_shape_based_fact(Shape, SeatVar, Fact) :- 
-    % assertz(shape_in_seat(Shape, SeatVar) :- \+ bad_shape_seat(Shape, SeatVar)).
-    % Fact = ((shape_in_seat(Shape, SeatVar) :- \+ bad_shape_seat(Shape, SeatVar))).
-    % freeze(SeatVar, \+ bad_shape_seat(Shape, SeatVar)),
-    Fact = (shape_in_seat(Shape, SeatVar)).
+seating_is_ok(Shape, Seat) :- 
+    findall(Req, shape_seating_requirement(Shape, Req, _), AllReqs),
+    maplist(requirement_predicate(Shape, Seat), AllReqs).
 
-add_seat_based_fact(Seat, ShapeVar, Fact) :- 
-    % assertz(shape_in_seat(ShapeVar, Seat) :- \+ bad_shape_seat(ShapeVar, Seat)).
-    % asserta(shape_in_seat(ShapeVar, Seat)).
-    % Fact = ((shape_in_seat(ShapeVar, Seat) :- \+ bad_shape_seat(ShapeVar, Seat))).
-    % freeze(ShapeVar, \+ bad_shape_seat(ShapeVar, Seat)),
-    Fact = (shape_in_seat(ShapeVar, Seat)).
+verify_seating((Shape, Seat)) :- 
+    % write('verify: '), write(Shape), write(': '), write(Seat), write('\n'),
+    % freeze((Shape, Seat), (write('verify: '), write(Shape), write(': '), write(Seat), write('\n'), seating_is_ok(Shape, Seat))).
+    seating_is_ok(Shape, Seat).
 
-add_empty_seat_facts(_, 0, [], []).
-add_empty_seat_facts(Level, N, [SeatVar | SeatVars], [Fact, Facts]) :- 
-    Shape = shape('Empty', Level),
-    % assertz(shape_in_seat(Shape, SeatVar) :- \+ bad_shape_seat(Shape, SeatVar)),
-    % Fact = (shape_in_seat(Shape, SeatVar) :- \+ bad_shape_seat(Shape, SeatVar)),
-    Fact = (shape_in_seat(Shape, SeatVar)),
-    % freeze(SeatVar, \+ bad_shape_seat(Shape, SeatVar)),
-    Next is N - 1,
-    add_empty_seat_facts(Level, Next, SeatVars, Facts).
+assert_non_adj((I1, I2)) :- assertz(non_adj_seat(I1, I2)).
+assert_non_nearby((I1, I2)) :- assertz(non_nearby_seat(I1, I2)).
 
-verify_shape(Shape, Seat) :- 
-    % write('verify shape\n'),
-    % write('verify?\n'),
-    shape_in_seat(Shape, Seat),
-    freeze(Seat, \+ bad_shape_seat(Shape, Seat)),
-    % \+ bad_shape_seat(Shape, Seat),
-    ground(Seat), Seat.
+print_seating(Shape) :- 
+    findall(Seat, (shape_in_seat(Shape, Seat)), Seats),
+    % shape_in_seat(Shape, Seats),
+    write(Shape), write(': '), write(Seats), write('\n').
 
+print_seat_info(SeatingChart, Seat) :-
+    member((Shape, Seat), SeatingChart),
+    write(Seat), write(': '), write(Shape), write('\n').
 
-verify_seat(Seat, Shape) :- 
-    % write('verify shape\n'),
-    % write('verify?\n'),
-    shape_in_seat(Shape, Seat),
-    freeze(Shape, \+ bad_shape_seat(Shape, Seat)),
-    % \+ bad_shape_seat(Shape, Seat),
-    ground(Seat), Seat.
+make_empties(0, []).
+make_empties(N, [E | Es]) :- Next is N - 1, E = empty(Next), assertz(shape(E)), make_empties(Next, Es).
 
-print_seating(Seat) :-
-    shape_in_seat(Shape, Seat),
-    Seat = seat(SeatName, _),
-    Shape = shape(ShapeName, _),
-    findall(Sh, (shape_in_seat(Sh, Seat), ground(Sh)), Shapes),
-    write(SeatName), write(': '), write(ShapeName), write(' | '), write(Shapes), write('\n').
+make_seating_chart(0, [], [], []).
+make_seating_chart(SeatCount, [(ShapeVar, SeatVar) | SCs], [ShapeVar | Shs], [SeatVar | Ses]) :-
+    Next is SeatCount - 1,
+    assertz(shape_in_seat(ShapeVar, SeatVar)), make_seating_chart(Next, SCs, Shs, Ses).
 
-print_seating_for_shape(Shape) :-
-    shape_in_seat(Shape, Seat),
-    Seat = seat(SeatName, _),
-    Shape = shape(ShapeName, _),
-    findall(Se, (shape_in_seat(Shape, Se), ground(Se)), Seats),
-    write(ShapeName), write(': '), write(SeatName), write(' | '), write(Seats), write('\n').
+make_seating_lists(Seat) :- 
+    findall(Adj, adjacent_seat(Seat, Adj), Adjs),
+    assertz(all_adj_seats(Seat, Adjs)),
+    findall(NAdj, non_adj_seat(Seat, NAdj), NAdjs),
+    assertz(all_non_adj_seats(Seat, NAdjs)),
+    findall(Nearby, nearby_seat(Seat, Nearby), Nearbys),
+    assertz(all_nearby_seats(Seat, Nearbys)),
+    findall(NNearby, non_nearby_seat(Seat, NNearby), NNearbys),
+    assertz(all_non_nearby_seats(Seat, NNearbys)).
 
-solve_game(Level) :- 
+% where we define a lot of our hardcoded negations
+game_init :-
     % get all shapes and seats in the level
-    findall(Shape, (Shape = shape(ShapeName, Level), Shape, ShapeName \= 'Empty'), AllShapes),
+    findall(Shape, shape(Shape), AllShapes),
     write('All Shapes: '), write(AllShapes), write('\n'),
-    findall(Seat, (Seat = seat(_, Level), Seat), AllSeats),
-    % add facts for each that map it to a free var of the other type
-    maplist(add_shape_based_fact, AllShapes, SeatVarsForShapes, ShapeFacts),
-    write('Seat Vars For Shapes: '), write(SeatVarsForShapes), write('\n'),
-    maplist(add_seat_based_fact, AllSeats, ShapeVarsForSeats, SeatFacts),
-    write('Shape Vars for Seats: '), write(ShapeVarsForSeats), write('\n'),
-    % add shape_in_seat(empty, SeatVar) fact for each empty seat
-    length(AllSeats, SeatCount), length(AllShapes, ShapeCount),
-    EmptyCount is SeatCount - ShapeCount,
-    add_empty_seat_facts(Level, EmptyCount, EmptySeatVars, EmptySeatFacts),
-    append([SeatVarsForShapes, EmptySeatVars], AllSeatVars),
+    % define non adj/nearby relations
+    findall(Seat, seat(Seat), AllSeats),
+    length(AllShapes, ShapeCount),
+    length(AllSeats, SeatCount),
+    EmptySeatCount is SeatCount - ShapeCount,
+    make_empties(EmptySeatCount, EmptyShapes),
 
+    findall((S1, S2), (seat(S1), seat(S2), dif(S1, S2)), AllSeatRelations),
 
-    alldif(AllSeatVars),
-    % make our shape vars unique except for empty seats. hopefully the limit on the number of empty seat facts keeps everything in order?
-    alldifshapes(ShapeVarsForSeats, Level),
-    subset(AllSeatVars, AllSeats),
-    % subset(ShapeVarsForSeats, [shape('Empty', Level) | AllShapes]),
-    findall(EmptiesIdx, nth0(EmptiesIdx, ShapeVarsForSeats, shape('Empty', Level)), EmptyIdxs),
-    length(EmptyIdxs, EmptyCount),
-    maplist(assertz, ShapeFacts), maplist(assertz, SeatFacts), maplist(assertz, EmptySeatFacts),
+    findall((S1, S2), (seat(S1), seat(S2), adjacent_seat(S1, S2)), AdjSeats),
+    subtract(AllSeatRelations, AdjSeats, NonAdjSeats),
+    maplist(assert_non_adj, NonAdjSeats),
 
-    maplist(print_seating, AllSeats),
-    maplist(print_seating_for_shape, AllShapes),
+    findall((S1, S2), (seat(S1), seat(S2), nearby_seat(S1, S2)), NearbySeats),
+    subtract(AllSeatRelations, NearbySeats, NonNearbySeats),
+    maplist(assert_non_nearby, NonNearbySeats),
 
-    % findall((Sh, Se, '\n'), (shape_in_seat(Sh, Se)), ShapeSeats), 
-    % write(ShapeSeats),
+    maplist(make_seating_lists, AllSeats),
 
-    % get all our seat vars together and make sure they're unique. ie, no shapes can share a seat
-    % write('Seat Vars For All: '), write(AllSeatVars), write('\n'),
-    % shape_in_seat(TestShape, seat('2', '1_1_2')),
-    % write(TestShape),
+    append([AllShapes, EmptyShapes], AllAndEmptyShapes),
 
-    
-    maplist(verify_shape, AllShapes, SeatResults),
-    maplist(verify_seat, AllSeats, ShapeResults),
-    % print(SeatResults),
-
-    maplist(print_seating, AllSeats),
-    maplist(print_seating_for_shape, AllShapes).
+    make_seating_chart(SeatCount, SeatingChart, ShapeVars, SeatVars),
+    alldif(ShapeVars),
+    alldif(SeatVars),
+    maplist(shape, ShapeVars),
+    !,
+    maplist(seat, SeatVars),
+    maplist(verify_seating, SeatingChart),
+    maplist(nonvar, SeatVars),
+    maplist(print_seat_info(SeatingChart), AllSeats),
+    write('Seating Chart: '), write(SeatingChart), write('\n').
