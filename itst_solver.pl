@@ -5,25 +5,20 @@
 alldif([]).
 alldif([E|Es]) :-
     maplist(dif(E), Es),
-    maplist(\=(E), Es),
     alldif(Es).
 
-seating_is_ok(Shape, Seat) :- 
+seating_is_ok(SeatingChart, Shape, Seat) :- 
     findall(Req, shape_seating_requirement(Shape, Req, _), AllReqs),
-    maplist(requirement_predicate(Shape, Seat), AllReqs).
+    maplist(requirement_predicate(SeatingChart, Shape, Seat), AllReqs).
 
-verify_seating((Shape, Seat)) :- 
+verify_seating(SeatingChart, (Shape, Seat)) :- 
     % write('verify: '), write(Shape), write(': '), write(Seat), write('\n'),
-    % freeze((Shape, Seat), (write('verify: '), write(Shape), write(': '), write(Seat), write('\n'), seating_is_ok(Shape, Seat))).
-    seating_is_ok(Shape, Seat).
+    % freeze((Shape, Seat), (write('verify: '), write(Shape), write(': '), write(Seat), write('\n'), seating_is_ok(Shape, Seat))),
+    seating_is_ok(SeatingChart, Shape, Seat).
 
 assert_non_adj((I1, I2)) :- assertz(non_adj_seat(I1, I2)).
 assert_non_nearby((I1, I2)) :- assertz(non_nearby_seat(I1, I2)).
 
-print_seating(Shape) :- 
-    findall(Seat, (shape_in_seat(Shape, Seat)), Seats),
-    % shape_in_seat(Shape, Seats),
-    write(Shape), write(': '), write(Seats), write('\n').
 
 print_seat_info(SeatingChart, Seat) :-
     member((Shape, Seat), SeatingChart),
@@ -32,10 +27,8 @@ print_seat_info(SeatingChart, Seat) :-
 make_empties(0, []).
 make_empties(N, [E | Es]) :- Next is N - 1, E = empty(Next), assertz(shape(E)), make_empties(Next, Es).
 
-make_seating_chart(0, [], [], []).
-make_seating_chart(SeatCount, [(ShapeVar, SeatVar) | SCs], [ShapeVar | Shs], [SeatVar | Ses]) :-
-    Next is SeatCount - 1,
-    assertz(shape_in_seat(ShapeVar, SeatVar)), make_seating_chart(Next, SCs, Shs, Ses).
+make_seating_chart([], [], []).
+make_seating_chart([ShapeVar | Shs], [(ShapeVar, SeatVar) | SCs], [SeatVar | Ses]) :- make_seating_chart(Shs, SCs, Ses).
 
 make_seating_lists(Seat) :- 
     findall(Adj, adjacent_seat(Seat, Adj), Adjs),
@@ -73,13 +66,10 @@ game_init :-
 
     append([AllShapes, EmptyShapes], AllAndEmptyShapes),
 
-    make_seating_chart(SeatCount, SeatingChart, ShapeVars, SeatVars),
-    alldif(ShapeVars),
+    make_seating_chart(AllAndEmptyShapes, SeatingChart, SeatVars),
     alldif(SeatVars),
-    maplist(shape, ShapeVars),
     !,
+    maplist(verify_seating(SeatingChart), SeatingChart),
     maplist(seat, SeatVars),
-    maplist(verify_seating, SeatingChart),
-    maplist(nonvar, SeatVars),
     maplist(print_seat_info(SeatingChart), AllSeats),
     write('Seating Chart: '), write(SeatingChart), write('\n').

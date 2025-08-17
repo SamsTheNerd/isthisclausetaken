@@ -1,3 +1,5 @@
+:- use_module(library(clpfd)).
+
 % shapes and seats can be atoms with a world atom attached maybe?
 
 :- multifile seat/1.
@@ -20,20 +22,18 @@
 :- multifile adjacent_seat_mapdef/2.
 :- multifile nearby_seat_mapdef/2.
 
-:- dynamic shape_in_seat/2.
-
 % shape_seating_requirement(Shape, RequirementName, Data) - indicates that a shape has a given requirement
 :- multifile shape_seating_requirement/3. 
 
-% requirement_predicate(Shape, Seat, Requirement) - defines the predicate for verifying a requirement
-:- multifile requirement_predicate/3.
+% requirement_predicate(SeatingChart, Shape, Seat, Requirement) - defines the predicate for verifying a requirement
+:- multifile requirement_predicate/4.
 
 % indicates a shape needs a given status in the seat they are in (like window)
 :- multifile needs_status/2. 
 
 shape_seating_requirement(Shape, 'req_needs_status_in_seat', Status) :- needs_status(Shape, Status).
 
-requirement_predicate(Shape, Seat, 'req_needs_status_in_seat') :- 
+requirement_predicate(SeatingChart, Shape, Seat, 'req_needs_status_in_seat') :- 
     findall(Status, shape_seating_requirement(Shape, 'req_needs_status_in_seat', Status), AllNeededStatus),
     maplist(seat_status(Seat), AllNeededStatus).
 
@@ -42,7 +42,7 @@ requirement_predicate(Shape, Seat, 'req_needs_status_in_seat') :-
 
 shape_seating_requirement(Shape, 'req_dislikes_status_in_seat', Status) :- dislikes_status(Shape, Status).
 
-requirement_predicate(Shape, Seat, 'req_dislikes_status_in_seat') :- 
+requirement_predicate(SeatingChart, Shape, Seat, 'req_dislikes_status_in_seat') :- 
     findall(Status, shape_seating_requirement(Shape, 'req_dislikes_status_in_seat', Status), AllDislikedStatus),
     maplist(seat_not_status(Seat), AllDislikedStatus).
 
@@ -56,41 +56,44 @@ requirement_predicate(Shape, Seat, 'req_dislikes_status_in_seat') :-
 
 shape_seating_requirement(Shape, 'req_needs_adj_pred', Pred) :- needs_adj(Shape, Pred).
 
-adj_shape_with(Seat, Pred) :- 
-    adjacent_seat(Seat, OtherSeat), shape_in_seat(Shape, OtherSeat), freeze(Shape, (call(Pred, Shape))).
+adj_shape_with(SeatingChart, Seat, Pred) :- 
+    adjacent_seat(Seat, OtherSeat), shape_seat_lookup(SeatingChart, Shape, OtherSeat), freeze(Shape, (call(Pred, Shape))).
     % write('Adj Shape to seat '), write(Seat), write(' is '), write(OtherSeat), write(' containing shape '), write(Shape), write('\n').
 
-requirement_predicate(Shape, Seat, 'req_needs_adj_pred') :- 
+requirement_predicate(SeatingChart, Shape, Seat, 'req_needs_adj_pred') :- 
     findall(Pred, shape_seating_requirement(Shape, 'req_needs_adj_pred', Pred), AllPreds),
-    write(AllPreds),
-    maplist(adj_shape_with(Seat), AllPreds).
+    % write(AllPreds),
+    maplist(adj_shape_with(SeatingChart, Seat), AllPreds).
 
 % dislikes_adj(Shape, ShapePredicate) - force everything adjacent to match 
 :- multifile all_adj_match/2.
 
 shape_seating_requirement(Shape, 'req_all_adj_match', ShapePred) :- all_adj_match(Shape, ShapePred).
 
-enforce_all_adj(Seat, Pred) :- all_adj_seats(Seat, Adjs), maplist(shape_in_seat, Adjs, Shapes), maplist(Pred, Shapes).
+enforce_all_adj(SeatingChart, Seat, Pred) :- all_adj_seats(Seat, Adjs), maplist(seat_shape_lookup(SeatingChart), Adjs, Shapes), maplist(Pred, Shapes).
 
-requirement_predicate(Shape, Seat, 'req_all_adj_match') :- 
+requirement_predicate(SeatingChart, Shape, Seat, 'req_all_adj_match') :- 
     findall(Pred, shape_seating_requirement(Shape, 'req_all_adj_match', Pred), AllPreds),
-    write(AllPreds),
-    maplist(enforce_all_adj(Seat), AllPreds).
+    % write(AllPreds),
+    maplist(enforce_all_adj(SeatingChart, Seat), AllPreds).
 
 :- multifile needs_adj_shape/2.
 needs_adj(Shape, =(NeedsShape)) :- needs_adj_shape(Shape, NeedsShape).
 
 :- multifile wants_alone/1.
-is_empty(empty(_)).
-% all_adj_match(Shape, is_empty) :- wants_alone(Shape).
+is_empty(empty(N)).
+all_adj_match(Shape, is_empty) :- wants_alone(Shape).
 
-shape_seating_requirement(Shape, 'req_alone', _) :- wants_alone(Shape).
 
-requirement_predicate(Shape, Seat, 'req_alone') :- 
-    write('req alone\n'),
-    all_adj_seats(Seat, Adjs),
-    maplist(shape_in_seat, Adjs, Shapes),
-    maplist(is_empty, Shapes).
+seat_shape_lookup(SeatingChart, Seat, Shape) :- member((Shape, Seat), SeatingChart).
+shape_seat_lookup(SeatingChart, Shape, Seat) :- member((Shape, Seat), SeatingChart).
+
+% shape_seating_requirement(Shape, 'req_alone', _) :- wants_alone(Shape).
+% requirement_predicate(SeatingChart, Shape, Seat, 'req_alone') :- 
+%     write('req alone\n'),
+%     all_adj_seats(Seat, Adjs),
+%     maplist(seat_shape_lookup(SeatingChart), Adjs, Shapes),
+%     maplist(is_empty, Shapes), write(Shape), write(' is alone\n').
 
 
 % indicates a status spreads to adj seats - do any do this actually?
