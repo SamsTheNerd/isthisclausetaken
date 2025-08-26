@@ -56,15 +56,24 @@ nearby_status(stinky).
 % seat_status(_, Shape, Status) :- seat_status_def(Shape, Status).
 
 
-shape_seating_requirement(Shape, 'req_needs_adj_shape', Friend) :- needs_adj_shape(Shape, Friend).
+shape_seating_requirement(Shape, 'req_needs_adj_pred', Pred) :- needs_adj(Shape, Pred).
 
-adj_friend(GameState, Seat, Friend) :- 
+adj_shape_with(GameState, Seat, Pred) :- 
     get_seating_chart(GameState, SeatingChart),
-    adjacent_seat(Seat, OtherSeat), shape_seat_lookup(SeatingChart, Friend, OtherSeat).
+    adjacent_seat(Seat, OtherSeat), shape_seat_lookup(SeatingChart, Shape, OtherSeat), 
+    call(Pred, Shape).
 
-requirement_predicate(GameState, Shape, Seat, 'req_needs_adj_shape') :- 
-    findall(F, shape_seating_requirement(Shape, 'req_needs_adj_shape', F), AllFriends),
-    maplist(adj_friend(GameState, Seat), AllFriends).
+requirement_predicate(GameState, Shape, Seat, 'req_needs_adj_pred') :- 
+    findall(Pred, shape_seating_requirement(Shape, 'req_needs_adj_pred', Pred), AllPreds),
+    % write(AllPreds),
+    maplist(adj_shape_with(GameState, Seat), AllPreds).
+
+% needs/dislikes nearby for like,, people or whatever
+% needs_adj(Shape, ShapePredicate)
+:- multifile needs_adj/2. 
+needs_adj(Shape, =(NeedsShape)) :- needs_adj_shape(Shape, NeedsShape).
+
+
 
 shape_seating_requirement(Shape, 'req_needs_status_in_seat', Status) :- needs_status(Shape, Status).
 
@@ -85,26 +94,6 @@ requirement_predicate(GameState, Shape, Seat, 'req_dislikes_status_in_seat') :-
 % indicates a shape produces a status (like smells bad)
 :- multifile produces_status/2.
 
-
-% needs/dislikes nearby for like,, people or whatever
-% needs_adj(Shape, ShapePredicate)
-:- multifile needs_adj/2. 
-
-shape_seating_requirement(Shape, 'req_needs_adj_pred', Pred) :- needs_adj(Shape, Pred).
-
-adj_shape_with(GameState, Seat, Pred) :- 
-    get_seating_chart(GameState, SeatingChart),
-    adjacent_seat(Seat, OtherSeat), shape_seat_lookup(SeatingChart, Shape, OtherSeat), 
-    call(Pred, Shape),
-    % freeze(Shape, (call(Pred, Shape))).
-    write('Adj Shape to seat '), write(Seat), write(' is '), write(OtherSeat), write(' containing shape '), write(Shape), write('\n').
-
-requirement_predicate(GameState, Shape, Seat, 'req_needs_adj_pred') :- 
-    findall(Pred, shape_seating_requirement(Shape, 'req_needs_adj_pred', Pred), AllPreds),
-    % write(AllPreds),
-    maplist(adj_shape_with(GameState, Seat), AllPreds).
-
-
 % dislikes_adj(Shape, ShapePredicate) - force everything adjacent to match 
 :- multifile all_adj_match/2.
 
@@ -120,7 +109,6 @@ requirement_predicate(GameState, Shape, Seat, 'req_all_adj_match') :-
 same_shape(ShapeName, Shape) :- write(ShapeName), write('='), write(Shape), write('\n'), ShapeName = Shape, write('yay').
 
 :- multifile needs_adj_shape/2.
-% needs_adj(Shape, =(NeedsShape)) :- needs_adj_shape(Shape, NeedsShape).
 % needs_adj(Shape, same_shape(NeedsShape)) :- needs_adj_shape(Shape, NeedsShape).
 
 
