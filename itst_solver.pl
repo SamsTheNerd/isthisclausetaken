@@ -7,21 +7,33 @@ alldif([E|Es]) :-
     maplist(dif(E), Es),
     alldif(Es).
 
-seating_is_ok(SeatingChart, Shape, Seat) :- 
-    findall(Req, shape_seating_requirement(Shape, Req, _), AllReqs),
-    maplist(requirement_predicate(SeatingChart, Shape, Seat), AllReqs).
+seating_is_ok(GameState, Shape, Seat) :- 
+    findall(Req, shape_seating_requirement(Shape, Req, _), AllShapeReqs),
+    % findall(Req, seat_seating_requirement(Seat, Req, _), AllSeatReqs),
+    maplist(requirement_predicate(GameState, Shape, Seat), AllShapeReqs).
 
-verify_seating(SeatingChart, (Shape, Seat)) :- 
+verify_seating(GameState, (Shape, Seat)) :- 
     % write('verify: '), write(Shape), write(': '), write(Seat), write('\n'),
     % freeze((Shape, Seat), (write('verify: '), write(Shape), write(': '), write(Seat), write('\n'), seating_is_ok(Shape, Seat))),
-    seating_is_ok(SeatingChart, Shape, Seat).
+    seating_is_ok(GameState, Shape, Seat).
 
 assert_non_adj((I1, I2)) :- assertz(non_adj_seat(I1, I2)).
 assert_non_nearby((I1, I2)) :- assertz(non_nearby_seat(I1, I2)).
 
+assert_antistatus(Seat, Stat) :- assertz(seat_status_antidef(Seat, Stat)).
 
-print_seat_info(SeatingChart, Seat) :-
+make_seat_status_antidefs(AllStats, Seat) :-
+    findall(SeatStat, seat_status_def(Seat, SeatStat), SeatStats),
+    subtract(AllStats, SeatStats, SeatAntiStats),
+    maplist(assert_antistatus(Seat), SeatAntiStats).
+
+get_stinky_text(GameState, Seat, ' not stinky! ') :- seat_not_status(GameState, Seat, stinky).
+get_stinky_text(GameState, Seat, ' stinky! ') :- seat_status(GameState, Seat, stinky).
+
+print_seat_info(GameState, Seat) :-
+    get_seating_chart(GameState, SeatingChart),
     member((Shape, Seat), SeatingChart),
+    % get_stinky_text(GameState, Seat, StinkyText),
     write(Seat), write(': '), write(Shape), write('\n').
 
 make_empties(0, []).
@@ -58,6 +70,9 @@ game_init :-
     subtract(AllSeatRelations, AdjSeats, NonAdjSeats),
     maplist(assert_non_adj, NonAdjSeats),
 
+    findall(Stat, seat_status_def(_, Stat), AllStatsList), list_to_set(AllStatsList, AllStats),
+    maplist(make_seat_status_antidefs(AllStats), AllSeats),
+
     findall((S1, S2), (seat(S1), seat(S2), nearby_seat(S1, S2)), NearbySeats),
     subtract(AllSeatRelations, NearbySeats, NonNearbySeats),
     maplist(assert_non_nearby, NonNearbySeats),
@@ -68,8 +83,10 @@ game_init :-
 
     make_seating_chart(AllAndEmptyShapes, SeatingChart, SeatVars),
     alldif(SeatVars),
+    GameState = game_state(SeatingChart),
     !,
-    maplist(verify_seating(SeatingChart), SeatingChart),
+    maplist(verify_seating(GameState), SeatingChart),
     maplist(seat, SeatVars),
-    maplist(print_seat_info(SeatingChart), AllSeats),
-    write('Seating Chart: '), write(SeatingChart), write('\n').
+    !,
+    write('Seating Chart: '), write(SeatingChart), write('\n'),
+    maplist(print_seat_info(GameState), AllSeats).
